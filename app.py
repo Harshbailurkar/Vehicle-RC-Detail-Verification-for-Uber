@@ -1,20 +1,34 @@
-import flask
+from flask import Flask, request, jsonify
 import easyocr
- 
-def extract_text_from_image(image_path):
+import requests
+from io import BytesIO
+from PIL import Image
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Initialize EasyOCR Reader
+reader = easyocr.Reader(['en'])
+
+def extract_text_from_image(image_path_or_url):
     """
     Extract text from the given image using EasyOCR.
     """
-    # Initialize the EasyOCR Reader
-    reader = easyocr.Reader(['en'])  # You can add more languages if needed
- 
+    # If the input is a URL, download the image
+    if image_path_or_url.startswith("http"):
+        response = requests.get(image_path_or_url)
+        image = Image.open(BytesIO(response.content))
+    else:
+        # If it's a local file path, open the image
+        image = Image.open(image_path_or_url)
+
     # Perform OCR on the image
-    results = reader.readtext(image_path)
- 
+    results = reader.readtext(image)
+
     # Combine all detected text into a single string
     extracted_text = " ".join([text[1] for text in results])
     return extracted_text
- 
+
 def verify_details(extracted_text, user_details):
     """
     Verify extracted text against user-provided details.
@@ -26,27 +40,44 @@ def verify_details(extracted_text, user_details):
         else:
             verification_results[field] = "Not Verified"
     return verification_results
- 
+
+@app.route("/verify", methods=["POST"])
+def verify():
+    """
+    API endpoint to verify RC details from an image.
+    """
+    try:
+        # Get the data from the request body
+        data = request.get_json()
+        image_url = data.get("imgUrl")  # URL or file path to the image
+        user_data = data.get("userData")  # User details as a dictionary
+
+        if not image_url or not user_data:
+            return jsonify({"error": "Missing imgUrl or userData in request body"}), 400
+
+        # Step 1: Extract text from the image
+        extracted_text = extract_text_from_image(image_url)
+        
+        # Step 2: Verify details
+        verification_results = verify_details(extracted_text, user_data)
+
+        verified = False
+        if(verification_results['Owner Name'] == 'Verified' and verification_results['Vehicle Number'] == 'Verified' and verification_results['Vehicle Model'] == 'Verified' ):
+            verified = True
+        else:
+            verified = False
+
+
+        # Return the results as a JSON response
+        return jsonify({
+            "verified": verified,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    # Input: Image path of the RC document
-    rc_image_path = "C:/Users/lamtu/Downloads/image_.jpeg"  # Replace with your image path
- 
-    # User-provided details to verify
-    user_provided_details = {
-        "Owner Name": "Harsh Bailurkar",  # Replace with the actual name
-        "Vehicle Number": "MH 09 BE 2025",  # Replace with the actual number plate
-        "Vehicle Model": "Zen",  # Replace with the actual vehicle model
-    }
- 
-    # Step 1: Extract text from the RC image
-    extracted_text = extract_text_from_image(rc_image_path)
-    print("Extracted Text from RC Document:")
-    print(extracted_text)
- 
-    # Step 2: Verify details
-    verification_results = verify_details(extracted_text, user_provided_details)
- 
-    # Step 3: Display verification results
-    print("\nVerification Results:")
-    for field, status in verification_results.items():
-        print(f"{field}: {status}")
+    # Run the Flask app
+    app.run(debug=True)
+    # To run with gunicorn, use the following command:
+    # gunicorn app:app

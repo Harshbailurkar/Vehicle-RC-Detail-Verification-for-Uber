@@ -1,0 +1,5 @@
+Flask==2.0.1
+easyocr==1.4
+requests==2.25.1
+Pillow==8.2.0
+gunicorn==20.1.0
