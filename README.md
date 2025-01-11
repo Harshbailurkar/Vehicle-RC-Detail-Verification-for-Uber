@@ -17,7 +17,7 @@ This project is a Flask application that verifies RC (Registration Certificate) 
 
 1. Clone the repository:
     ```sh
-    git clone <repository_url>
+    git clone https://github.com/Harshbailurkar/Vehicle-RC-Detail-Verification-for-Uber.git
     cd RC_verification_for_Uber
     ```
 
@@ -33,7 +33,7 @@ This project is a Flask application that verifies RC (Registration Certificate) 
     python app.py
     ```
 
-2. The app will be available at `http://localhost:5000`.
+2. The app will be available at `http://127.0.0.1:5000`.
 
 ## API Endpoints
 
