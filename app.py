@@ -3,24 +3,23 @@ import easyocr
 import requests
 from io import BytesIO
 from PIL import Image
+from flask_cors import CORS
+import os
+import tempfile
 
 # Initialize Flask app
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 # Initialize EasyOCR Reader
 reader = easyocr.Reader(['en'])
 
-def extract_text_from_image(image_path_or_url):
+def extract_text_from_image(image_path):
     """
     Extract text from the given image using EasyOCR.
     """
-    # If the input is a URL, download the image
-    if image_path_or_url.startswith("http"):
-        response = requests.get(image_path_or_url)
-        image = Image.open(BytesIO(response.content))
-    else:
-        # If it's a local file path, open the image
-        image = Image.open(image_path_or_url)
+    # Open the image
+    image = Image.open(image_path)
 
     # Perform OCR on the image
     results = reader.readtext(image)
@@ -48,25 +47,31 @@ def verify():
     """
     try:
         # Get the data from the request body
-        data = request.get_json()
-        image_url = data.get("imgUrl")  # URL or file path to the image
-        user_data = data.get("userData")  # User details as a dictionary
+        user_data = request.form.to_dict()
+        image_file = request.files.get("imgUrl")
 
-        if not image_url or not user_data:
+        if not image_file or not user_data:
             return jsonify({"error": "Missing imgUrl or userData in request body"}), 400
 
+        # Save the uploaded image to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            image_file.save(temp_file.name)
+            temp_file_path = temp_file.name
+
         # Step 1: Extract text from the image
-        extracted_text = extract_text_from_image(image_url)
+        extracted_text = extract_text_from_image(temp_file_path)
         
         # Step 2: Verify details
         verification_results = verify_details(extracted_text, user_data)
 
         verified = False
-        if(verification_results['Owner Name'] == 'Verified' and verification_results['Vehicle Number'] == 'Verified' and verification_results['Vehicle Model'] == 'Verified' ):
+        if(verification_results['Owner Name'] == 'Verified' and verification_results['Vehicle Number'] == 'Verified'  ):
             verified = True
         else:
             verified = False
 
+        # Delete the temporary file
+        os.remove(temp_file_path)
 
         # Return the results as a JSON response
         return jsonify({
@@ -79,5 +84,3 @@ def verify():
 if __name__ == "__main__":
     # Run the Flask app
     app.run(debug=True)
-    # To run with gunicorn, use the following command:
-    # gunicorn app:app
